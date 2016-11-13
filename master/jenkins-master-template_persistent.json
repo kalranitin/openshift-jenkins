@@ -1,0 +1,301 @@
+{
+  "kind": "Template",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "jenkins-master",
+    "annotations": {
+      "description": "Jenkins service with Kubernetes plugin, without persistent storage. WARNING: Any data stored will be lost upon pod destruction. Only use this template for testing",
+      "iconClass": "icon-jenkins",
+      "tags": "instant-app,jenkins"
+    }
+  },
+  "labels": {
+    "template": "jenkins-master-template"
+  },
+  "parameters": [
+    {
+      "name": "JENKINS_SERVICE_NAME",
+      "displayName": "Jenkins Service Name",
+      "value": "jenkins"
+    },
+    {
+      "name": "JENKINS_PASSWORD",
+      "displayName": "Jenkins Password",
+      "description": "Password for the Jenkins user.",
+      "generate": "expression",
+      "value": "password"
+    },
+    {
+      "name": "JENKINS_REPO_URL",
+      "displayName": "Jenkins URL",
+      "description": "The repository to use to customize the Jenkins server.",
+      "value": "https://github-isl-01.ca.com/SaasDevOps/openshift-jenkins.git"
+    },
+    {
+      "name": "JENKINS_REPO_CONTEXTDIR",
+      "displayName": "Jenkins Context",
+      "description": "The sub-directory inside the repository.",
+      "value": "master"
+    },
+    {
+      "name": "JENKINS_REPO_REF",
+      "displayName": "Jenkins Reference",
+      "description": "The git ref or tag to use for customization.",
+      "value": "master"
+    },
+	{
+      "name": "JENKINS_IMAGE",
+      "description": "Jenkins Docker image to use",
+      "value": "openshift/jenkins-1-centos7"
+    },
+    {
+        "name": "VOLUME_CAPACITY",
+        "displayName": "Volume Capacity",
+        "description": "Volume space available for data, e.g. 512Mi, 2Gi.",
+        "value": "1Gi",
+        "required": true
+    },
+    {
+        "name": "MEMORY_LIMIT",
+        "displayName": "Memory Limit",
+        "description": "Maximum amount of memory the container can use.",
+        "value": "2Gi"
+    },
+    {
+       "name": "PERSISTENT_VOL_NAME",
+       "description": "Persistent Volume Name",
+       "value": "jenkins",
+       "required": true
+    }
+  ],
+  "objects": [
+    {
+      "kind": "Route",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "jenkins",
+        "creationTimestamp": null
+      },
+      "spec": {
+        "to": {
+          "kind": "Service",
+          "name": "${JENKINS_SERVICE_NAME}"
+        },
+        "port": {
+          "targetPort": 8080
+        }
+      }
+    },
+    {
+      "kind": "ImageStream",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "jenkins-master"
+      },
+      "spec": {}
+    },
+    {
+        "kind": "PersistentVolumeClaim",
+        "apiVersion": "v1",
+        "metadata": {
+            "name": "${JENKINS_SERVICE_NAME}"
+        },
+        "spec": {
+            "accessModes": [
+                "ReadWriteMany"
+            ],
+            "resources": {
+                "requests": {
+                    "storage": "${VOLUME_CAPACITY}"
+                }
+            },
+			"volumeName": "${PERSISTENT_VOL_NAME}"
+        }
+    },
+    {
+      "kind": "BuildConfig",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "jenkins-master",
+        "annotations": {
+          "description": "Customize Jenkins image to automatically add slaves"
+        },
+        "labels": {
+          "name": "jenkins-master"
+        }
+      },
+      "spec": {
+        "triggers": [
+          {
+            "type": "imageChange",
+            "imageChange": {}
+          },
+          {
+            "type": "ConfigChange"
+          }
+        ],
+        "source": {
+          "type": "Git",
+          "contextDir": "${JENKINS_REPO_CONTEXTDIR}",
+          "git": {
+            "uri": "${JENKINS_REPO_URL}",
+            "ref": "${JENKINS_REPO_REF}"
+          },
+          "sourceSecret": {
+            "name":"scmsecret"
+          }
+        },
+        "strategy": {
+          "type": "Source",
+          "sourceStrategy": {
+            "from": {
+                "kind": "DockerImage",
+                "name": "${JENKINS_IMAGE}"
+            }
+          }
+        },
+        "output": {
+          "to": {
+            "kind": "ImageStreamTag",
+            "name": "jenkins-master:latest"
+          }
+        },
+        "resources": {}
+      }
+    },
+    {
+      "kind": "DeploymentConfig",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${JENKINS_SERVICE_NAME}",
+        "creationTimestamp": null
+      },
+      "spec": {
+        "strategy": {
+          "type": "Recreate",
+          "resources": {}
+        },
+        "triggers": [
+          {
+            "type": "ImageChange",
+            "imageChangeParams": {
+              "automatic": true,
+              "containerNames": [
+                "jenkins"
+              ],
+              "from": {
+                "kind": "ImageStreamTag",
+                "name": "jenkins-master:latest"
+              },
+              "lastTriggeredImage": ""
+            }
+          },
+          {
+            "type": "ConfigChange"
+          }
+        ],
+        "replicas": 1,
+        "selector": {
+          "name": "${JENKINS_SERVICE_NAME}"
+        },
+        "template": {
+          "metadata": {
+            "creationTimestamp": null,
+            "labels": {
+              "name": "${JENKINS_SERVICE_NAME}"
+            }
+          },
+          "spec": {
+			"containers": [
+              {
+                "name": "jenkins",
+                "image": "jenkins-master",
+                "readinessProbe": {
+                  "timeoutSeconds": 60,
+                  "initialDelaySeconds": 3,
+                  "httpGet": {
+                    "path": "/login",
+                    "port": 8080
+                  }
+                },
+                "livenessProbe": {
+                    "timeoutSeconds": 3,
+                    "initialDelaySeconds": 30,
+                    "httpGet": {
+                        "path": "/login",
+                        "port": 8080
+                    }
+                },
+                "env": [
+                  {
+                    "name": "JENKINS_PASSWORD",
+                    "value": "${JENKINS_PASSWORD}"
+                  }
+                ],
+                "resources": {
+                   "limits": {
+                   "memory": "${MEMORY_LIMIT}"
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "name": "${JENKINS_SERVICE_NAME}-data",
+                    "mountPath": "/var/lib/jenkins"
+                  }
+                ],
+                "terminationMessagePath": "/dev/termination-log",
+                "imagePullPolicy": "IfNotPresent",
+                "capabilities": {},
+                "securityContext": {
+                  "capabilities": {},
+                  "privileged": false
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "${JENKINS_SERVICE_NAME}-data",
+                "persistentVolumeClaim": {
+                    "claimName": "${JENKINS_SERVICE_NAME}"
+                }
+              }
+            ],
+            "restartPolicy": "Always",
+            "dnsPolicy": "ClusterFirst"
+          }
+        }
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${JENKINS_SERVICE_NAME}"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "web",
+            "protocol": "TCP",
+            "port": 8080,
+            "targetPort": 8080,
+            "nodePort": 0
+          },
+          {
+            "name": "jnlp",
+            "protocol": "TCP",
+            "port": 50000,
+            "targetPort": 50000,
+            "nodePort": 0
+          }
+        ],
+        "selector": {
+          "name": "${JENKINS_SERVICE_NAME}"
+        },
+        "portalIP": "",
+        "type": "ClusterIP",
+        "sessionAffinity": "None"
+      }
+    }
+  ]
+}
