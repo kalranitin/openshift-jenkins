@@ -29,7 +29,7 @@
       "name": "JENKINS_REPO_URL",
       "displayName": "Jenkins URL",
       "description": "The repository to use to customize the Jenkins server.",
-      "value": "https://github-isl-01.ca.com/SaasDevOps/openshift-jenkins.git"
+      "value": "https://github.com/kalranitin/openshift-jenkins.git"
     },
     {
       "name": "JENKINS_REPO_CONTEXTDIR",
