@@ -66,6 +66,18 @@
        "description": "Persistent Volume Name",
        "value": "jenkins",
        "required": true
+    },
+    {
+	  "name": "NODE_SELECTOR_KEY",
+	  "value": "region",
+	  "description": "Node selector where this pod would be deployed",
+       "required": true
+    },
+    {
+	  "name": "NODE_SELECTOR_VALUE",
+	  "value": "infrastructure",
+	  "description": "Node selector where this pod would be deployed",
+       "required": true
     }
   ],
   "objects": [
@@ -261,7 +273,11 @@
               }
             ],
             "restartPolicy": "Always",
-            "dnsPolicy": "ClusterFirst"
+            "dnsPolicy": "ClusterFirst",
+            "serviceAccount":"",
+		    "nodeSelector": {
+			  "${NODE_SELECTOR_KEY}":"${NODE_SELECTOR_VALUE}"
+		    }
           }
         }
       }
@@ -299,3 +315,4 @@
     }
   ]
 }
+

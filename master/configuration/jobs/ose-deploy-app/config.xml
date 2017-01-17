@@ -4,17 +4,10 @@
   <description>Deploy the application on OpenShift</description>
   <keepDependencies>false</keepDependencies>
   <properties>
-    <io.fabric8.jenkins.openshiftsync.BuildConfigProjectProperty plugin="openshift-sync@0.0.12">
-      <uid></uid>
-      <namespace></namespace>
-      <name></name>
-      <resourceVersion></resourceVersion>
-      <contextDir></contextDir>
-    </io.fabric8.jenkins.openshiftsync.BuildConfigProjectProperty>
     <jenkins.model.BuildDiscarderProperty>
       <strategy class="hudson.tasks.LogRotator">
         <daysToKeep>-1</daysToKeep>
-        <numToKeep>1</numToKeep>
+        <numToKeep>5</numToKeep>
         <artifactDaysToKeep>-1</artifactDaysToKeep>
         <artifactNumToKeep>-1</artifactNumToKeep>
       </strategy>
@@ -37,7 +30,7 @@
         <hudson.model.StringParameterDefinition>
           <name>SRC_IMAGE_REPO</name>
           <description>Source Image Repository path which would be as REGISTRY_HOST:REGISTRY_PORT/REPOSITORY_PATH</description>
-          <defaultValue>isl-dsdc.ca.com:5001/saas-devops/ose-example</defaultValue>
+          <defaultValue>capoc-docker-saas-devops.bintray.io/saas-devops/ose-example</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>SRC_IMAGE_NAME</name>
@@ -69,11 +62,6 @@
           <description>Deployment Config Name been set in OSE</description>
           <defaultValue>sample-app-deployment</defaultValue>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>OSE_POD_REPLICAS</name>
-          <description>Number of Replica to scale up once deployment is completed</description>
-          <defaultValue>1</defaultValue>
-        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
     <hudson.plugins.throttleconcurrents.ThrottleJobProperty plugin="throttle-concurrents@1.8.4">
@@ -92,25 +80,17 @@
   <triggers/>
   <concurrentBuild>true</concurrentBuild>
   <builders>
-    <com.openshift.jenkins.plugins.pipeline.OpenShiftScaler plugin="openshift-pipeline@1.0.17">
-      <apiURL>https://openshift.default.svc.cluster.local</apiURL>
-      <namespace>$OSE_PROJECT_NAME</namespace>
-      <authToken></authToken>
-      <verbose>false</verbose>
-      <depCfg>$OSE_DEP_CONFIG_NAME</depCfg>
-      <replicaCount>1</replicaCount>
-      <verifyReplicaCount>true</verifyReplicaCount>
-    </com.openshift.jenkins.plugins.pipeline.OpenShiftScaler>
     <hudson.tasks.Shell>
-      <command>docker pull $SRC_IMAGE_REPO/$SRC_IMAGE_NAME:$SRC_IMAGE_TAG
+      <command>docker login -u $BINTRAY_PULL_USER -e kalni03@ca.com -p $BINTRAY_PULL_CREDS capoc-docker-saas-devops.bintray.io
+
+docker pull $SRC_IMAGE_REPO/$SRC_IMAGE_NAME:$SRC_IMAGE_TAG
 
 oc login https://openshift.default.svc.cluster.local --insecure-skip-tls-verify=true -u $OSE_LOGIN_USER -p $OSE_LOGIN_PASS
-docker login -u $OSE_LOGIN_USER -e nitin.kalra@ca.com -p `oc whoami -t` `oc get svc docker-registry -n default -o jsonpath=&apos;{.spec.portalIP}&apos;`:5000
+docker login -u $OSE_LOGIN_USER -e kalni03@ca.com -p `oc whoami -t` `oc get svc docker-registry -n default -o jsonpath=&apos;{.spec.portalIP}&apos;`:5000
 
 docker tag $SRC_IMAGE_REPO/$SRC_IMAGE_NAME:$SRC_IMAGE_TAG `oc get svc docker-registry -n default -o jsonpath=&apos;{.spec.portalIP}&apos;`:5000/$OSE_PROJECT_NAME/$OSE_IMAGE_NAME:$OSE_IMAGE_TAG
 
 docker push `oc get svc docker-registry -n default -o jsonpath=&apos;{.spec.portalIP}&apos;`:5000/$OSE_PROJECT_NAME/$OSE_IMAGE_NAME:$OSE_IMAGE_TAG
-
 docker rmi `oc get svc docker-registry -n default -o jsonpath=&apos;{.spec.portalIP}&apos;`:5000/$OSE_PROJECT_NAME/$OSE_IMAGE_NAME:$OSE_IMAGE_TAG
 docker rmi $SRC_IMAGE_REPO/$SRC_IMAGE_NAME:$SRC_IMAGE_TAG</command>
     </hudson.tasks.Shell>
@@ -120,13 +100,9 @@ docker rmi $SRC_IMAGE_REPO/$SRC_IMAGE_NAME:$SRC_IMAGE_TAG</command>
       <authToken></authToken>
       <verbose>false</verbose>
       <depCfg>$OSE_DEP_CONFIG_NAME</depCfg>
-      <replicaCount>1</replicaCount>
+      <replicaCount></replicaCount>
       <verifyReplicaCount>false</verifyReplicaCount>
     </com.openshift.jenkins.plugins.pipeline.OpenShiftDeploymentVerifier>
-    <hudson.tasks.Shell>
-      <command>oc login https://openshift.default.svc.cluster.local --insecure-skip-tls-verify=true -u $OSE_LOGIN_USER -p $OSE_LOGIN_PASS
-oc scale dc $OSE_DEP_CONFIG_NAME --replicas=$OSE_POD_REPLICAS -n $OSE_PROJECT_NAME</command>
-    </hudson.tasks.Shell>
   </builders>
   <publishers/>
   <buildWrappers>
